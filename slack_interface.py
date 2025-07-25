@@ -11,9 +11,49 @@ def get_user_input():
     """Get task input from user"""
     return input("Enter a task (e.g., 'Remind Alex to review Q3 numbers Friday and summarize response'): ")
 
+def find_user_by_name(client, name):
+    """
+    Find a Slack user by their display name or real name
+    """
+    try:
+        # Get all users
+        response = client.users_list()
+        users = response['members']
+        
+        # Search by display name, real name, or first name
+        name_lower = name.lower()
+        
+        for user in users:
+            if user.get('is_bot') or user.get('deleted'):
+                continue
+                
+            # Check display name
+            if user.get('profile', {}).get('display_name', '').lower() == name_lower:
+                return user
+                
+            # Check real name
+            if user.get('profile', {}).get('real_name', '').lower() == name_lower:
+                return user
+                
+            # Check first name (split real name)
+            real_name = user.get('profile', {}).get('real_name', '')
+            if real_name and real_name.split()[0].lower() == name_lower:
+                return user
+                
+            # Check first name (split display name)
+            display_name = user.get('profile', {}).get('display_name', '')
+            if display_name and display_name.split()[0].lower() == name_lower:
+                return user
+        
+        return None
+        
+    except SlackApiError as e:
+        print(f"❌ Error finding user: {e.response['error']}")
+        return None
+
 def send_to_slack(parsed_task):
     """
-    Send parsed task to Slack using Socket Mode
+    Send parsed task to Slack using Socket Mode with user mentions
     """
     try:
         # Get Slack tokens from environment
@@ -41,16 +81,34 @@ def send_to_slack(parsed_task):
         # Get default channel
         default_channel = os.getenv('SLACK_DEFAULT_CHANNEL', 'general')
         
+        # Find the user by name
+        recipient_name = parsed_task['recipient']
+        user = find_user_by_name(client, recipient_name)
+        
+        if user:
+            user_id = user['id']
+            user_display_name = user.get('profile', {}).get('display_name') or user.get('profile', {}).get('real_name', recipient_name)
+            print(f"✅ Found user: {user_display_name} (@{user.get('name', 'unknown')})")
+        else:
+            print(f"❌ User '{recipient_name}' not found in Slack workspace")
+            print("   Using fallback mention...")
+            user_id = None
+            user_display_name = recipient_name
+        
         # Create message
-        recipient = parsed_task['recipient']
         task = parsed_task['task']
         due_date = parsed_task['due_date']
         response_required = parsed_task.get('response_required', False)
         output_format = parsed_task.get('output', 'confirmation')
         
-        # Format the message
+        # Format the message with proper mention
+        if user_id:
+            mention = f"<@{user_id}>"
+        else:
+            mention = f"@{recipient_name}"
+        
         message = f"🤖 *TaskPilot AI Task*\n\n"
-        message += f"*Recipient:* {recipient}\n"
+        message += f"*Recipient:* {mention}\n"
         message += f"*Task:* {task}\n"
         message += f"*Due Date:* {due_date}\n"
         message += f"*Response Required:* {'Yes' if response_required else 'No'}\n"
@@ -66,6 +124,7 @@ def send_to_slack(parsed_task):
         
         print(f"✅ Message sent to Slack channel: {default_channel}")
         print(f"📤 Message ID: {response['ts']}")
+        print(f"👤 Mentioned: {user_display_name}")
         
         return True
         
@@ -84,6 +143,9 @@ def send_to_slack(parsed_task):
         elif error_code == 'channel_not_found':
             print(f"❌ Channel '{default_channel}' not found")
             print("   Make sure the bot is added to the channel")
+        elif error_code == 'missing_scope':
+            print("❌ Missing required scope")
+            print("   Add 'users:read' scope to your bot permissions")
         else:
             print(f"❌ Slack API Error: {error_code}")
             print(f"   Details: {e.response.get('ok', False)}")
@@ -152,6 +214,16 @@ def test_slack_connection():
         print(f"   User: {response['user']}")
         print(f"   Bot ID: {response['bot_id']}")
         print(f"   App Token: {app_token[:10]}...")
+        
+        # Test user lookup capability
+        try:
+            users_response = client.users_list()
+            print(f"   Users accessible: {len(users_response['members'])}")
+        except SlackApiError as e:
+            if e.response['error'] == 'missing_scope':
+                print("   ⚠️  Missing 'users:read' scope for user lookup")
+            else:
+                print(f"   ⚠️  User lookup test failed: {e.response['error']}")
         
         return True
         

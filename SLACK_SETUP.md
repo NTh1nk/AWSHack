@@ -1,6 +1,6 @@
 # Slack Setup Guide for TaskPilot AI
 
-This guide will help you set up the correct Slack tokens to resolve the "not_allowed_token_type" error.
+This guide will help you set up the correct Slack tokens to resolve the "not_allowed_token_type" error and enable user mentions.
 
 ## 🚨 Error: "not_allowed_token_type"
 
@@ -27,6 +27,7 @@ This error occurs when you're using the wrong type of Slack token. You need **tw
    - `channels:read` - Read channel info
    - `app_mentions:read` - Read mentions
    - `channels:history` - Read channel messages
+   - `users:read` - **NEW: Read user info for mentions**
 
 ### Step 3: Get Bot User OAuth Token
 
@@ -82,6 +83,18 @@ The system will now validate your tokens:
 - ✅ `SLACK_BOT_TOKEN` should start with `xoxb-`
 - ✅ `SLACK_APP_TOKEN` should start with `xapp-`
 
+## 👤 User Mentions Feature
+
+The bot can now:
+- ✅ **Look up users** by their display name or real name
+- ✅ **Mention users** with proper `@username` format
+- ✅ **Send notifications** directly to specific people
+
+**Example**: When you say "Remind Alex to review the report", the bot will:
+1. Find Alex in your Slack workspace
+2. Send a message with `<@U1234567890>` (Alex's user ID)
+3. Alex will get a notification
+
 ## 🧪 Test Your Setup
 
 ```bash
@@ -109,13 +122,19 @@ python main.py socket
 ### "missing_scope"
 - **Cause**: Bot doesn't have required permissions
 - **Fix**: Add missing scopes in OAuth & Permissions
+- **For user mentions**: Make sure `users:read` scope is added
+
+### "User not found"
+- **Cause**: User name doesn't match Slack display name
+- **Fix**: Use the exact display name or real name from Slack
 
 ## 🔗 Useful Links
 
 - [Slack API Apps](https://api.slack.com/apps)
 - [Socket Mode Documentation](https://api.slack.com/apis/connections/socket)
 - [Bot Token Scopes](https://api.slack.com/scopes)
+- [User Lookup API](https://api.slack.com/methods/users.list)
 
 ---
 
-*Follow these steps carefully and your TaskPilot AI should work with Slack!* 
+*Follow these steps carefully and your TaskPilot AI should work with Slack and mention users!* 
